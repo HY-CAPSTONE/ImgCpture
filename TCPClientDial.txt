@@ -1,0 +1,63 @@
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+	"net"
+	"os"
+)
+
+func main() {
+	conn, err := net.Dial("tcp", "166.104.185.46:13072")
+	if nil != err {
+		fmt.Println("Failed to Dial")
+	}
+	fmt.Println("Successed to Dial : ", err)
+	defer conn.Close()
+
+	f4, err := os.Create("./data.bin")
+	if nil != err {
+		fmt.Println("Fail to Create file : ", err)
+		//break
+	}
+	defer f4.Close()
+
+	/*go func(c net.Conn) {
+		fmt.Println("Write Hello!")
+		send := "Hello"
+		for {
+			_, err = c.Write([]byte(send))
+			if err != nil {
+				fmt.Println("Failed to wirte data : ", err)
+				break
+			}
+
+			time.Sleep(1 * time.Second)
+		}
+	}(conn)
+	*/
+
+	go func(c net.Conn) {
+		fmt.Println("Read Data")
+		recv := make([]byte, 4096)
+
+		for {
+			n, err := c.Read(recv)
+			fmt.Println("Read Data")
+			if nil != err {
+				fmt.Println("Fail to Read data : ", err)
+				//break
+			}
+			fmt.Println("Read %d byte of data", n)
+
+			if n > 0 {
+				err = ioutil.WriteFile("./data.bin", recv, 0644)
+				if nil != err {
+					fmt.Println("Fail to Wirte file : ", err)
+				}
+			}
+		}
+
+		fmt.Scanln()
+	}(conn)
+}
