@@ -1,10 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"io"
+	_ "github.com/go-sql-driver/mysql"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -16,7 +14,21 @@ func verificaErro(e error) {
 	}
 }
 
-func getFilePath() (string, string) {
+type dbConn struct {
+	driverName  string
+	userName    string
+	password    string
+	ip          string
+	port        string
+	targetTable string
+}
+
+func (db dbConn) dbAddress() (string, string) {
+	dataSourceName := db.userName + ":" + db.password + "@tcp(" + db.ip + ":" + db.port + ")/" + db.targetTable
+	return db.driverName, dataSourceName
+}
+
+func getFilePath() (string, string, string) {
 	nowDir, err := os.Getwd()
 	verificaErro(err)
 	err = os.Mkdir("imgStuck", 0750)
@@ -30,7 +42,7 @@ func getFilePath() (string, string) {
 		string(timesheet.Minute()) +
 		string(timesheet.Second())
 
-	newFileName = filepath.Join(saveDir, newFileName) //저장 디렉토리 + 파일명
+	FileNameWithDir := filepath.Join(saveDir, newFileName) //저장 디렉토리 + 파일명
 
 	fileTarget := ""
 	if runtime.GOOS == "linux" {
@@ -38,7 +50,7 @@ func getFilePath() (string, string) {
 	} else {
 		fileTarget = newFileName //저장 대상 파일
 	}
-	return fileTarget, newFileName
+	return fileTarget, FileNameWithDir, newFileName
 }
 
 func makeFile(fileOutput string) bool {
@@ -53,68 +65,23 @@ func makeFile(fileOutput string) bool {
 	return true
 }
 
-func saveImg(fileTarget string, cmdName string, args []string) {
-	f, err4 := os.OpenFile(fileTarget, os.O_RDWR|os.O_APPEND, 0666)
-	verificaErro(err4)
-
-	cmd := exec.Command(cmdName, args...)
-	stdout, err := cmd.StdoutPipe()
-	verificaErro(err)
-	err2 := cmd.Start()
-	verificaErro(err2)
-
-	chunk := make([]byte, 1024)
-	for {
-		nr, err5 := stdout.Read(chunk)
-
-		if nr > 0 {
-			validData := chunk[:nr]
-			nw, err6 := f.Write(validData)
-			fmt.Printf("Write %d bytes\n", nw)
-			verificaErro(err6)
-		}
-		if err5 != nil {
-			if err5 == io.EOF {
-				break
-			}
-			fmt.Printf("Error = %v\n", err5)
-			continue
-		}
-	}
-	if err := cmd.Wait(); err != nil {
-		fmt.Printf("Wait command error: %v\n", err)
-	}
-}
-
-func capturePic() {
-	fileTarget, newFileName := getFilePath()
-	if makeFile(newFileName) {
-		println("Make File Confirm!")
-	}
-
-	IP := "tcp://166.104.185.46:13072"
-
-	cmdName := "ffmpeg"
-	args := []string{
-		"-y",
-		"-i",
-		IP,
-		"-s",
-		"640x480",
-		fileTarget,
-	}
-
-	saveImg(fileTarget, cmdName, args)
-}
-
 func main() {
-	ch := make(chan int, 1) //0 작업전 1 이미지 저장 완료
+	//ch := make(chan int, 1) //0 작업전 1 이미지 저장 완료
+	dbInfo := dbConn{
+		"mysql",
+		"root",
+		"wlgkcjf21gh",
+		"112.170.208.72",
+		"8080",
+		"capstone",
+	}
 
 	go func() {
 		for i := 0; i < 10; i++ {
-			capturePic()
-			ch <- 1
+			imgDir := capturePic()
+			insert_to_db(dbInfo, imgDir)
 			time.Sleep(10 * time.Minute)
 		}
 	}()
+
 }
