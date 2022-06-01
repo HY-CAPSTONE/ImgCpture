@@ -13,7 +13,7 @@ var nowDBInfo module.DBConn
 
 func makeTerm(restart *chan struct{}) {
 	println("Timer Start...")
-	time.Sleep(time.Minute)
+	time.Sleep(15 * time.Minute)
 	println("Restart...")
 	*restart <- struct{}{}
 }
